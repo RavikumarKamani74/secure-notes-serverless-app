@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport"content="width=device-width,initial-scale=1"/>
+  <title>🛡️ My Secure Notes App</title>
+  <style>
+    body{font-family:Arial,sans-serif;background:#f2f2f2;padding:20px;max-width:700px;margin:auto;}
+    h1{color:#333;text-align:center;}
+    form{display:flex;gap:10px;margin-bottom:20px;}
+    textarea{flex:1;padding:10px;border:1px solid #ccc;border-radius:4px;height:80px;}
+    button{padding:10px 20px;border:none;border-radius:4px;color:white;cursor:pointer;}
+    .add-btn{background:#28a745;}
+    .save-btn{background:#007bff;}
+    ul{list-style:none;padding:0;}
+    li{background:white;padding:15px;border-radius:5px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-start;}
+    .note-content{white-space:pre-wrap;flex:1;margin-right:10px;}
+    .buttons{display:flex;gap:5px;}
+    .buttons button{padding:5px 10px;font-size:0.85em;}
+    .edit-btn{background:#ffc107;}
+    .delete-btn{background:#dc3545;}
+    #message{margin-bottom:10px;font-weight:bold;}
+  </style>
+</head>
+<body>
+
+  <h1>🛡️ Secure Notes</h1>
+  <div id="message"></div>
+  <form id="noteForm">
+    <textarea id="noteInput" placeholder="Write your note here..." required></textarea>
+    <button type="submit" class="add-btn">Save Note</button>
+  </form>
+  <ul id="notesList">Loading notes...</ul>
+
+<script>
+const apiUrl = 'https://jfmrwgnt12.execute-api.ap-south-2.amazonaws.com/dev/note';
+let editingNoteId = null;
+
+async function fetchNotes() {
+  const ul = document.getElementById('notesList');
+  ul.innerHTML = 'Loading...';
+  document.getElementById('message').innerText = '';
+  try {
+    const res = await fetch(apiUrl);
+    const { notes } = await res.json();
+    ul.innerHTML = '';
+    if (!notes.length) ul.innerHTML = '<li>No notes found.</li>';
+    notes.forEach(note => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <div class="note-content">${note.content}</div>
+        <div class="buttons">
+          <button class="edit-btn">Edit</button>
+          <button class="delete-btn">Delete</button>
+        </div>`;
+      ul.appendChild(li);
+
+      li.querySelector('.edit-btn').onclick = () => startEditing(note.NoteId, note.content);
+      li.querySelector('.delete-btn').onclick = () => deleteNote(note.NoteId);
+    });
+  } catch (err) {
+    document.getElementById('message').innerText = 'Error loading notes.';
+    console.error(err);
+  }
+}
+
+function startEditing(id, content) {
+  editingNoteId = id;
+  document.getElementById('noteInput').value = content;
+  document.querySelector('.add-btn').innerText = 'Update Note';
+  document.querySelector('.add-btn').classList.replace('add-btn', 'save-btn');
+}
+
+async function deleteNote(id) {
+  if (!confirm('Delete this note?')) return;
+  try {
+    await fetch(`${apiUrl}/${id}`, { method: 'DELETE' });
+    document.getElementById('message').innerText = 'Note deleted.';
+    fetchNotes();
+  } catch (err) {
+    document.getElementById('message').innerText = 'Error deleting note.';
+    console.error(err);
+  }
+}
+
+document.getElementById('noteForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const content = document.getElementById('noteInput').value.trim();
+  if (!content) return;
+
+  const payload = { NoteId: editingNoteId || `note-${Date.now()}`, content };
+  const method = editingNoteId ? 'PUT' : 'POST';
+  
+  try {
+    const res = await fetch(apiUrl + (editingNoteId ? `/${editingNoteId}` : ''), {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    document.getElementById('message').innerText = data.message;
+    editingNoteId = null;
+    document.getElementById('noteInput').value = '';
+    document.querySelector('.save-btn')?.classList.replace('save-btn', 'add-btn');
+    document.querySelector('.add-btn').innerText = 'Save Note';
+    fetchNotes();
+  } catch (err) {
+    document.getElementById('message').innerText = 'Error saving note.';
+    console.error(err);
+  }
+});
+
+fetchNotes();
+</script>
+
+</body>
+</html>
